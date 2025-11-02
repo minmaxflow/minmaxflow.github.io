@@ -2,10 +2,8 @@ import fs from 'fs';
 import path from 'path';
 import matter from 'gray-matter';
 import { Post, PostMetadata } from './types';
-import { remark } from 'remark';
-import html from 'remark-html';
 
-const postsDirectory = path.join(process.cwd(), 'content/posts');
+const postsDirectory = path.join(process.cwd(), 'src/content');
 
 export function getAllPostSlugs() {
   if (!fs.existsSync(postsDirectory)) {
@@ -22,37 +20,30 @@ export function getAllPostSlugs() {
   });
 }
 
-async function markdownToHtml(markdown: string) {
-  const result = await remark().use(html).process(markdown);
-  return result.toString();
-}
-
-export async function getPostBySlug(slug: string): Promise<Post | null> {
+export function getPostBySlug(slug: string): Post | null {
   try {
     const fullPath = path.join(postsDirectory, `${slug}.mdx`);
     const fileContents = fs.readFileSync(fullPath, 'utf8');
-    const { data, content } = matter(fileContents);
-    const htmlContent = await markdownToHtml(content);
+    const { data } = matter(fileContents);
 
     return {
       slug,
       title: data.title,
       date: data.date,
       excerpt: data.excerpt || '',
-      content: htmlContent,
+      content: '', // Next.js 将直接处理 MDX 内容
     };
   } catch {
     return null;
   }
 }
 
-export async function getAllPosts(): Promise<Post[]> {
+export function getAllPosts(): Post[] {
   const slugs = getAllPostSlugs();
-  const posts = await Promise.all(
-    slugs.map(async ({ params }) => await getPostBySlug(params.slug))
-  );
-
-  return posts
+  const posts = slugs
+    .map(({ params }) => getPostBySlug(params.slug))
     .filter((post): post is Post => post !== null)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  return posts;
 }

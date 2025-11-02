@@ -4,14 +4,15 @@ import { getPostBySlug, getAllPosts } from '@/lib/posts';
 import { format } from 'date-fns';
 
 export async function generateStaticParams() {
-  const posts = await getAllPosts();
+  const posts = getAllPosts();
   return posts.map((post) => ({
     slug: post.slug,
   }));
 }
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const post = await getPostBySlug(params.slug);
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
 
   if (!post) {
     return {
@@ -25,8 +26,19 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   };
 }
 
-export default async function PostPage({ params }: { params: { slug: string } }) {
-  const post = await getPostBySlug(params.slug);
+// 动态导入 MDX 组件
+async function MDXContent({ slug }: { slug: string }) {
+  try {
+    const Content = (await import(`@/content/${slug}.mdx`)).default;
+    return <Content />;
+  } catch {
+    return null;
+  }
+}
+
+export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const post = getPostBySlug(slug);
 
   if (!post) {
     notFound();
@@ -55,10 +67,9 @@ export default async function PostPage({ params }: { params: { slug: string } })
             </time>
           </header>
 
-          <div
-            className="text-gray-700 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: post.content }}
-          />
+          <div className="prose max-w-none">
+            <MDXContent slug={slug} />
+          </div>
         </article>
       </main>
     </div>
