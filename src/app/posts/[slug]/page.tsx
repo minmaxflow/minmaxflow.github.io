@@ -2,6 +2,8 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { getPostBySlug, getAllPosts } from '@/lib/posts';
 import { format } from 'date-fns';
+import { remark } from 'remark';
+import html from 'remark-html';
 
 export async function generateStaticParams() {
   const posts = getAllPosts();
@@ -26,14 +28,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-// 动态导入 MDX 组件
-async function MDXContent({ slug }: { slug: string }) {
-  try {
-    const Content = (await import(`@/content/${slug}.mdx`)).default;
-    return <Content />;
-  } catch {
-    return null;
-  }
+// 处理 MDX 内容（当作 Markdown 处理，但保留 .mdx 扩展名）
+async function processMDXContent(slug: string) {
+  const fs = require('fs');
+  const matter = require('gray-matter');
+  const path = require('path');
+
+  const contentDirectory = path.join(process.cwd(), 'src/content');
+  const fullPath = path.join(contentDirectory, `${slug}.mdx`);
+
+  const fileContents = fs.readFileSync(fullPath, 'utf8');
+  const { content } = matter(fileContents);
+
+  // 使用 remark 处理内容
+  const result = await remark().use(html).process(content);
+  return result.toString();
 }
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -43,6 +52,8 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   if (!post) {
     notFound();
   }
+
+  const htmlContent = await processMDXContent(slug);
 
   return (
     <div className="min-h-screen bg-white">
@@ -67,9 +78,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
             </time>
           </header>
 
-          <div className="prose max-w-none">
-            <MDXContent slug={slug} />
-          </div>
+          <div
+            className="prose max-w-none"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
+          />
         </article>
       </main>
     </div>
